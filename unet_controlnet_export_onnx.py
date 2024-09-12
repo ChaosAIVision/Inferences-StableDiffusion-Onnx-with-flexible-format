@@ -4,14 +4,13 @@ import os
 import shutil
 from pathlib import Path
 import torch
-from torch.onnx import onnx 
+from torch.onnx import export 
 import onnx
 from onnxruntime.transformers.float16 import convert_float_to_float16
 from diffusers import StableDiffusionPipeline
 from unet_2d_condition_cnet import UNet2DConditionModel_Cnet
 from diffusers import OnnxRuntimeModel, OnnxStableDiffusionPipeline, StableDiffusionPipeline
 from onnxruntime.transformers.onnx_model_unet import UnetOnnxModel
-from torch.onnx import export
 
 
 warnings.filterwarnings('ignore', '.*will be truncated.*')
