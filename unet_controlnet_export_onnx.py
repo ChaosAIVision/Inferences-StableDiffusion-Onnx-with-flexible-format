@@ -191,7 +191,7 @@ def convert_unet(pipeline: StableDiffusionPipeline, output_path: str, opset: int
 args = parser.parse_args()
 dtype = torch.float32
 device = 'cuda'
-unet = UNet2DConditionModel_Cnet.from_pretrained(args.model_path, subfolder="unet")
+unet = UNet2DConditionModel_Cnet.from_pretrained(args.model_path, subfolder="unet", use_safetensors=True)
 pl = StableDiffusionPipeline.from_pretrained(args.model_path, torch_dtype=dtype, unet=unet).to(device)
 convert_unet(pl, args.output_path, args.opset, args.fp16)
 
