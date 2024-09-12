@@ -5,12 +5,21 @@ import shutil
 from pathlib import Path
 import torch
 from torch.onnx import export 
+from typing import Union, Optional, Tuple
+
 import onnx
 from onnxruntime.transformers.float16 import convert_float_to_float16
 from diffusers import StableDiffusionPipeline
-from unet_2d_condition_cnet import UNet2DConditionModel_Cnet
+# from unet_2d_condition_cnet import UNet2DConditionModel_Cnet
 from diffusers import OnnxRuntimeModel, OnnxStableDiffusionPipeline, StableDiffusionPipeline
 from onnxruntime.transformers.onnx_model_unet import UnetOnnxModel
+from diffusers import (
+    OnnxRuntimeModel,
+    OnnxStableDiffusionPipeline,
+    StableDiffusionPipeline,
+    ControlNetModel,
+    UNet2DConditionModel )
+from diffusers.models.unet_2d_condition import UNet2DConditionOutput
 
 
 warnings.filterwarnings('ignore', '.*will be truncated.*')
@@ -45,6 +54,38 @@ parser.add_argument(
     help="Export UNET in mixed `float16` mode"
 )
 
+class UNet2DConditionModel_Cnet(UNet2DConditionModel):
+    def forward(
+        self,
+        sample: torch.FloatTensor,
+        timestep: Union[torch.Tensor, float, int],
+        encoder_hidden_states: torch.Tensor,
+        down_block_add_res00: Optional[torch.Tensor] = None,
+        down_block_add_res01: Optional[torch.Tensor] = None,
+        down_block_add_res02: Optional[torch.Tensor] = None,
+        down_block_add_res03: Optional[torch.Tensor] = None,
+        down_block_add_res04: Optional[torch.Tensor] = None,
+        down_block_add_res05: Optional[torch.Tensor] = None,
+        down_block_add_res06: Optional[torch.Tensor] = None,
+        down_block_add_res07: Optional[torch.Tensor] = None,
+        down_block_add_res08: Optional[torch.Tensor] = None,
+        down_block_add_res09: Optional[torch.Tensor] = None,
+        down_block_add_res10: Optional[torch.Tensor] = None,
+        down_block_add_res11: Optional[torch.Tensor] = None,
+        mid_block_additional_residual: Optional[torch.Tensor] = None
+    ) -> Union[UNet2DConditionOutput, Tuple]:
+        down_block_add_res = (
+            down_block_add_res00, down_block_add_res01, down_block_add_res02,
+            down_block_add_res03, down_block_add_res04, down_block_add_res05,
+            down_block_add_res06, down_block_add_res07, down_block_add_res08,
+            down_block_add_res09, down_block_add_res10, down_block_add_res11)
+        return super().forward(
+            sample = sample,
+            timestep = timestep,
+            encoder_hidden_states = encoder_hidden_states,
+            down_block_additional_residuals = down_block_add_res,
+            mid_block_additional_residual = mid_block_additional_residual
+        )
 
 class UnetOnnxModelDML(UnetOnnxModel):
     def __init__(self, model: onnx.ModelProto):
@@ -71,7 +112,7 @@ def onnx_export(
          model,
          model_args,
          f= output_path.as_posix(),
-         input_name =ordered_input_names,
+         input_names =ordered_input_names,
          output_names= output_names,
          dynamic_axes = dynamic_axes,
          do_constant_folding= True,
@@ -168,15 +209,14 @@ def convert_unet(pipeline: StableDiffusionPipeline, output_path: str, opset: int
     shutil.rmtree(unet_dir)
     os.mkdir(unet_dir)
 
-    optimizer = UnetOnnxModelDML(unet, 0, 0)
-    if not notune:
-        optimizer.optimize()
-        optimizer.topological_sort()
+    # optimizer = UnetOnnxModelDML(unet)
+    # optimizer.optimize()
+    # optimizer.topological_sort()
 
     # collate external tensor files into one
     onnx.save_model(
-        optimizer.model,
         unet_model_path,
+        f= '/Users/chaos/Documents/Chaos_working/Chaos_projects/Inferences-StableDiffusion-Onnx-with-flexible-format/output/unet',
         save_as_external_data=True,
         all_tensors_to_one_file=True,
         location="weights.pb",
@@ -190,10 +230,10 @@ def convert_unet(pipeline: StableDiffusionPipeline, output_path: str, opset: int
 
 args = parser.parse_args()
 dtype = torch.float32
-device = 'cuda'
+device = 'cpu'
 unet = UNet2DConditionModel_Cnet.from_pretrained(args.model_path, subfolder="unet", use_safetensors=True)
 pl = StableDiffusionPipeline.from_pretrained(args.model_path, torch_dtype=dtype, unet=unet).to(device)
-convert_unet(pl, args.output_path, args.opset, args.fp16)
+convert_unet(pl, args.output_path, args.opset, args.fp16, device, dtype)
 
 
         
