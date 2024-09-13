@@ -20,6 +20,7 @@ from diffusers import (
     ControlNetModel,
     UNet2DConditionModel )
 from diffusers.models.unet_2d_condition import UNet2DConditionOutput
+from onnxruntime.transformers.optimizer import optimize_model
 
 
 warnings.filterwarnings('ignore', '.*will be truncated.*')
@@ -89,14 +90,16 @@ class UNet2DConditionModel_Cnet(UNet2DConditionModel):
 
 class UnetOnnxModelDML(UnetOnnxModel):
     def __init__(self, model: onnx.ModelProto):
-        self.model = model
+        super().__init__(model)
+        self.all_graphs = [model.graph]  # Initialize all_graphs with the primary graph
 
     def optimize(self, enable_shape_inference=False):
-            if not enable_shape_inference:
-                self.disable_shape_inference()
-                self.fuse_layer_norm()
-                self.preprocess()
-                self.postprocess() 
+        if not enable_shape_inference:
+            self.disable_shape_inference()
+            self.fuse_layer_norm()
+            self.preprocess()
+            self.postprocess() 
+
 
 def onnx_export(
           model, 
@@ -209,14 +212,14 @@ def convert_unet(pipeline: StableDiffusionPipeline, output_path: str, opset: int
     shutil.rmtree(unet_dir)
     os.mkdir(unet_dir)
 
-    # optimizer = UnetOnnxModelDML(unet)
-    # optimizer.optimize()
-    # optimizer.topological_sort()
+    optimizer = UnetOnnxModelDML(unet)
+    optimizer.optimize()
+    optimizer.topological_sort()
 
     # collate external tensor files into one
     onnx.save_model(
+        optimizer.model,
         unet_model_path,
-        f= '/Users/chaos/Documents/Chaos_working/Chaos_projects/Inferences-StableDiffusion-Onnx-with-flexible-format/output/unet',
         save_as_external_data=True,
         all_tensors_to_one_file=True,
         location="weights.pb",
