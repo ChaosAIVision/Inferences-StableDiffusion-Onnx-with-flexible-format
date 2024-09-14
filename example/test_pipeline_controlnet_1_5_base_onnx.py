@@ -1,4 +1,4 @@
-from stable_diffusion_manager import (
+from pipeline_controlnet.pipeline_controlnet_1_5_base_onnx import (
     StableDiffusionManager,
     StableDiffusionOnnxLoader, 
     StableDiffusionWeightPath)
