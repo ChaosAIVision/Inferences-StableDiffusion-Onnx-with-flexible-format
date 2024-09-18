@@ -18,7 +18,6 @@ from diffusers import (
 from diffusers.models.attention_processor import AttnProcessor
 from diffusers.pipelines.controlnet.pipeline_controlnet_sd_xl import StableDiffusionXLControlNetPipeline
 from typing import Union, Optional, Tuple
-import controlnet_hinter
 
 
 is_torch_less_than_1_11 = version.parse(version.parse(torch.__version__).base_version) < version.parse("1.11")
@@ -142,7 +141,6 @@ def onnx_export(
 def convert_models(
     model_path:str,
     controlnet_path:str,
-    control_net_hinter_type:str,
     output_path:str,
     opset:int,
     fp16: bool = False   
@@ -155,29 +153,8 @@ def convert_models(
     else:
         device = "cpu"
 
-    #Get attribute controlnet
-    hinter_controlnet = controlnet_hinter
-    if hasattr(hinter_controlnet, control_net_hinter_type):
-        hinter = getattr(hinter_controlnet, control_net_hinter_type)
-
-#     CONTROLNET_MAPPING = {
-
-#     "model_type": {
-#         "model_id": f"{controlnet_path}",
-#         "hinter": hinter
-#     },
-
-# }
-    CONTROLNET_MAPPING = {
-
-        "canny_edge": {
-            "model_id": "lllyasviel/sd-controlnet-canny",
-            "hinter": controlnet_hinter.hint_canny
-        },
-
-    }
-    controlnet_type =  control_net_hinter_type
-    controlnet = ControlNetModel.from_pretrained("lllyasviel/sd-controlnet-canny")
+    
+    controlnet = ControlNetModel.from_pretrained('lllyasviel/sd-controlnet-openpose')
 
     pipeline = StableDiffusionControlNetImg2ImgPipeline.from_pretrained(
             model_path, controlnet=controlnet, torch_dtype=dtype
@@ -229,10 +206,9 @@ def convert_models(
                 'down_block_add_res11',
                 'mid_block_res_sample'],
         dynamic_axes={
-                "sample": {0: "2B", 2: "H", 3: "W"},
-                "encoder_hidden_states": {0: "2B"},
-                "encoder_hidden_states": {0: "2B"},  # Tensor encoder hidden states
-                "controlnet_cond": {0:"2B", 2: "H", 3: "W"},
+                "sample": {0: "B", 2: "H", 3: "W"},
+                "encoder_hidden_states": {0: "B", 1:"2B", 2:"2B"},
+                "controlnet_cond": {0:"B", 2: "H", 3: "W"},
                 },
          opset= opset,
         use_external_data_format=True,  # UNet is > 2GB, so the weights need to be split
@@ -260,8 +236,6 @@ def convert_models(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--sd_xl", action="store_true", default=False, help="SD XL pipeline")
-
     parser.add_argument(
         "--model_path",
         type=str,
@@ -277,7 +251,6 @@ if __name__ == "__main__":
     )
 
     parser.add_argument("--output_path", type=str, required=True, help="Path to the output model.")
-    parser.add_argument("--control_net_hinter_type", type=str, required=True, help="controlnet hinter name.")
 
 
     parser.add_argument(
@@ -290,7 +263,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    convert_models(args.model_path, args.controlnet_path,args.control_net_hinter_type, args.output_path, args.opset, args.fp16)
+    convert_models(args.model_path, args.controlnet_path, args.output_path, args.opset, args.fp16)
 
 
 

@@ -1,7 +1,7 @@
 import onnxruntime as ort
 
 # Define the path to the ONNX model
-onnx_model_path = "/Users/chaos/Documents/Chaos_working/Chaos_projects/Inferences-StableDiffusion-Onnx-with-flexible-format/output/unet/model.onnx"
+onnx_model_path = "/home/chaos/Documents/Chaos_project/project/Inferences-StableDiffusion-Onnx-with-flexible-format/unet_model.onnx"
 
 # Load the ONNX model
 session = ort.InferenceSession(onnx_model_path)
