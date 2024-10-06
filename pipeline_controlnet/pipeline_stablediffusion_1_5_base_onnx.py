@@ -14,7 +14,7 @@ from transformers import CLIPFeatureExtractor, CLIPImageProcessor, CLIPTokenizer
 from diffusers import DDIMScheduler, PNDMScheduler, LMSDiscreteScheduler
 from typing import Callable, List, Optional, Union
 import inspect
-from utils import load_scheduler_config , ORT_TO_NP_TYPE
+from .utils import load_scheduler_config , ORT_TO_NP_TYPE
 import logging
 from tqdm import tqdm
 import logging
@@ -30,7 +30,7 @@ class StableDiffusionWeightPath:
         self.text_encoder = os.path.join(self.sd_folder_path, 'text_encoder/model.onnx')
         self.vae_encoder = os.path.join(self.sd_folder_path, 'vae_encoder/model.onnx')
         self.vae_decoder = os.path.join(self.sd_folder_path, 'vae_decoder/model.onnx')
-        self.unet = os.path.join(self.sd_folder_path, 'unet/model.onnx')
+        self.unet = os.path.join(self.sd_folder_path, 'unet_optimize/model.onnx')
 
 
 
@@ -319,7 +319,7 @@ class StableDiffusionManager:
 
             # predict the noise residual
             timestep = np.array([t], dtype='int64')
-            noise_pred = self.onnx_model_execute.unet_execute(sample= latent_model_input, time_step= timestep, text_encoder=prompt_embeds)
+            noise_pred = self.onnx_model_execute.unet_execute(sample= latent_model_input, time_step= timestep.astype(np.float16), text_encoder=prompt_embeds)
             noise_pred = noise_pred[0]
 
              # perform guidance

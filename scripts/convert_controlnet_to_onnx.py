@@ -10,6 +10,7 @@ from onnx import shape_inference
 from packaging import version
 from polygraphy.backend.onnx.loader import fold_constants
 from torch.onnx import export
+from transformers import AutoProcessor, CLIPVisionModelWithProjection, CLIPImageProcessor, CLIPTokenizer
 
 from diffusers import (
     ControlNetModel,
@@ -85,12 +86,14 @@ class ControlNetModelCustom(torch.nn.Module):
     def forward(self, sample: torch.FloatTensor,
                 timestep: Union[torch.Tensor, float, int],
                 encoder_hidden_states: torch.Tensor,
-                controlnet_cond: torch.FloatTensor ):
+                controlnet_cond: torch.FloatTensor,
+                conditioning_scale:torch.Tensor ):
         output_controlnet = self.controlnet(
             sample = sample,
             timestep = timestep,
             encoder_hidden_states = encoder_hidden_states,
             controlnet_cond = controlnet_cond,
+            conditioning_scale= conditioning_scale,
             return_dict = False
         )
 
@@ -109,7 +112,7 @@ def onnx_export(
     use_external_data_format=False,
 ):
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    # PyTorch deprecated the `enable_onnx_checker` and `use_external_data_format` arguments in v1.11,
+    # PyTorch deprecated the enable_onnx_checker and use_external_data_format arguments in v1.11,
     # so we check the torch version for backwards compatibility
     with torch.inference_mode(), torch.autocast("cuda"):
         if is_torch_less_than_1_11:
@@ -146,15 +149,16 @@ def convert_models(
     fp16: bool = False   
 ):
     dtype = torch.float16 if fp16 else torch.float32
-    if fp16 and torch.cuda.is_available():
-        device = "cuda"
-    elif fp16 and not torch.cuda.is_available():
-        raise ValueError("`float16` model export is only supported on GPUs with CUDA")
-    else:
-        device = "cpu"
+    device = 'cuda'
+    # if fp16 and torch.cuda.is_available():
+    #     device = "cuda"
+    # elif fp16 and not torch.cuda.is_available():
+    #     raise ValueError("float16 model export is only supported on GPUs with CUDA")
+    # else:
+    #     device = "cpu"
 
     
-    controlnet = ControlNetModel.from_pretrained('lllyasviel/sd-controlnet-openpose')
+    controlnet = ControlNetModel.from_pretrained('lllyasviel/sd-controlnet-depth')
 
     pipeline = StableDiffusionControlNetImg2ImgPipeline.from_pretrained(
             model_path, controlnet=controlnet, torch_dtype=dtype
@@ -185,29 +189,31 @@ def convert_models(
         torch.tensor([1.0]).to(device=device, dtype=dtype),
         torch.randn(2, num_tokens, text_hidden_size).to(device=device, dtype=dtype),
         torch.randn(2,3, img_size, img_size ).to(device=device, dtype=dtype),
+        torch.tensor([1.0]).to(device=device, dtype=torch.float64),
         ),
         output_path = controlnet_output_path,
         ordered_input_names=[
             "sample",
             "timestep",
             "encoder_hidden_states",
-            'controlnet_cond'],
-        output_names= ['down_block_add_res00',
-                'down_block_add_res01',
-                'down_block_add_res02',
-                'down_block_add_res03',
-                'down_block_add_res04', 
-                'down_block_add_res05',
-                'down_block_add_res06', 
-                'down_block_add_res07', 
-                'down_block_add_res08',
-                'down_block_add_res09',
-                'down_block_add_res10',
-                'down_block_add_res11',
+            'controlnet_cond',
+            'conditioning_scale'],
+        output_names= ['down_block_0',
+                'down_block_1',
+                'down_block_2',
+                'down_block_3',
+                'down_block_4', 
+                'down_block_5',
+                'down_block_6', 
+                'down_block_7', 
+                'down_block_8',
+                'down_block_9',
+                'down_block_10',
+                'down_block_11',
                 'mid_block_res_sample'],
         dynamic_axes={
                 "sample": {0: "B", 2: "H", 3: "W"},
-                "encoder_hidden_states": {0: "B", 1:"2B", 2:"2B"},
+                "encoder_hidden_states": {0: "B", 1:"chaos", 2:"2B"},
                 "controlnet_cond": {0:"B", 2: "H", 3: "W"},
                 },
          opset= opset,
@@ -233,21 +239,21 @@ def convert_models(
 
     del pipeline
 
-if __name__ == "__main__":
+if __name__ == "_main_":
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
         "--model_path",
         type=str,
         required=True,
-        help="Path to the `diffusers` checkpoint to convert (either a local directory or on the Hub).",
+        help="Path to the diffusers checkpoint to convert (either a local directory or on the Hub).",
     )
 
     parser.add_argument(
         "--controlnet_path",
         nargs="+",
         required=True,
-        help="Path to the `controlnet` checkpoint to convert (either a local directory or on the Hub).",
+        help="Path to the controlnet checkpoint to convert (either a local directory or on the Hub).",
     )
 
     parser.add_argument("--output_path", type=str, required=True, help="Path to the output model.")
@@ -259,12 +265,8 @@ if __name__ == "__main__":
         type=int,
         help="The version of the ONNX operator set to use.",
     )
-    parser.add_argument("--fp16", action="store_true", default=False, help="Export the models in `float16` mode")
+    parser.add_argument("--fp16", action="store_true", default=False, help="Export the models in float16 mode")
 
     args = parser.parse_args()
 
     convert_models(args.model_path, args.controlnet_path, args.output_path, args.opset, args.fp16)
-
-
-
-

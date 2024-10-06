@@ -1,29 +1,30 @@
-from pipeline_controlnet.pipeline_controlnet_1_5_base_onnx import (
+from pipeline_controlnet.pipeline_stablediffusion_1_5_base_onnx import (
     StableDiffusionManager,
     StableDiffusionOnnxLoader, 
     StableDiffusionWeightPath)
+
 from transformers import CLIPFeatureExtractor, CLIPImageProcessor, CLIPTokenizer
 from diffusers import DDIMScheduler, PNDMScheduler, LMSDiscreteScheduler
 from typing import Callable, List, Optional, Union
-from utils import load_scheduler_config
+from pipeline_controlnet.utils import load_scheduler_config
 
 
-path = '/home/chaos/Documents/Chaos_project/project/stable_diffusion_pipe_line/model/sd15_onnx'
+path = '/home/chaos/Documents/Chaos_project/model/sd_controlnext_fp16_onnx/'
 sd_model_path = StableDiffusionWeightPath(path)
-scheduler_config = load_scheduler_config('/home/chaos/Documents/Chaos_project/project/stable_diffusion_pipe_line/model/sd15_onnx/scheduler/scheduler_config.json')
+scheduler_config = load_scheduler_config('/home/chaos/Documents/Chaos_project/model/sd_controlnext_fp16_onnx/scheduler/scheduler_config.json')
 onnx_model = StableDiffusionOnnxLoader(sd_model_path)
 scheduler =  LMSDiscreteScheduler()
-vocab_file = '/home/chaos/Documents/Chaos_project/project/stable_diffusion_pipe_line/model/sd15_onnx/tokenizer/vocab.json'
+vocab_file = '/home/chaos/Documents/Chaos_project/model/sd_controlnext_fp16_onnx/tokenizer/vocab.json'
 merge_file = '/home/chaos/Documents/Chaos_project/project/stable_diffusion_pipe_line/model/sd15_onnx/tokenizer/merges.txt'
 tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-base-patch32")
 
 pipeline = StableDiffusionManager(onnx_model,tokenizer ,scheduler, None ,scheduler_config )
-prompt = ' a photo of an astronaut riding a horse on mars'
+prompt = ' a photo of an astronaut riding a horse on mars, beautiful image'
 negative_promt = 'not generate a green horse '
 # promt_encoder = pipeline.encoder_prompt(prompt, 1, True, negative_promt, None, None )
 # print(promt_encoder.shape)
 
-result = pipeline(prompt=prompt,negative_prompt= negative_promt ,num_inference_steps= 30)
+result = pipeline(prompt=prompt,negative_prompt= negative_promt ,num_inference_steps= 20)
 # print(result)
 
 from PIL import Image
